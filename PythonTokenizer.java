@@ -4,6 +4,7 @@ import java.io.*;
 import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.Scanner;
 
 public class PythonTokenizer {
@@ -14,6 +15,7 @@ public class PythonTokenizer {
     private static boolean isInsideChoiceBlock = false;
     private static boolean isFunctionIOParams = false;
     private static boolean isAssignNow = false;
+    private static boolean isInputParam = false;
     private static int LIMIT = 0;
     public static HashMap<TToken, TokenInformation> fullChapinMetric = new HashMap<>();
     public static HashMap<TToken, TokenInformation> ioChapinMetric = new HashMap<>();
@@ -25,21 +27,27 @@ public class PythonTokenizer {
     }
 
     public static void count() {
-//        operators.clear();
-//        operands.clear();
-        tokenFlow = tokenize(readCodeFromFile(fileWithCodePath));
+        fullChapinMetric.clear();
+        ioChapinMetric.clear();
+
         countLIMIT();
 
         TToken item;
         for (int i = 0; i < tokenFlow.size(); i++) {
             item = tokenFlow.get(i);
+            if (item.tokenValue().matches("i")){
+                System.out.print("");
+            }
             switch (item.tokenType()){
                 case OPERATION -> {
                     switch (item.tokenValue()){
                         case ":" -> exitFromChoiceBlock();
                         case ")","}" -> isFunctionIOParams = false;
                         case "{" -> isFunctionIOParams = true;
-                        case "=" -> isAssignNow = false;
+                        case "=" -> {
+                            isAssignNow = false;
+                            isInputParam = false;
+                        }
                     }
                 }
                 case INNER_FUNCTION, IDENTIFIER -> {
@@ -51,8 +59,12 @@ public class PythonTokenizer {
                         if (retToSave(i) && function()) {
                             if (item.tokenValue().matches("(input|print)")) isFunctionIOParams = true;
                         }
-                        else if (retToSave(i) && assignment() || retToSave(i) && getArrayElem()) {
+                        else if (retToSave(i) && assignment()) {
                             isAssignNow=true;
+                            if (tokenFlow.get(i+2).tokenValue().matches("input")) {
+                                isInputParam = true;
+                                isFunctionIOParams = true;
+                            }
                             addToMap(fullChapinMetric,item);
                         }
                         else if (retToSave(i) && term(TokenType.IDENTIFIER)) addToMap(fullChapinMetric, item);
@@ -67,13 +79,6 @@ public class PythonTokenizer {
                 }
             }
         }
-        System.out.println("\tFull Chapin's metric");
-        printMap(fullChapinMetric);
-        System.out.println("Summary spen: "+getSum(fullChapinMetric)+"\n\n\n");
-
-        System.out.println("\tInput-output Chapin's metric");
-        printMap(ioChapinMetric);
-        System.out.println("Summary spen: "+getSum(ioChapinMetric)+"\n\n\n");
     }
 
     public static boolean enterInsideChoiceBlock(){
@@ -86,8 +91,16 @@ public class PythonTokenizer {
 
     public static int getSum(HashMap<TToken,TokenInformation> hashMap){
         int sum=0;
-        for (TokenInformation information:hashMap.values()) sum+=information.count;
+        for (TokenInformation information:hashMap.values()) sum+=(information.count-1);
         return sum;
+    }
+
+    public static int countByType(HashMap<TToken,TokenInformation> hashMap, EVariableGroup type){
+        int result = 0;
+        for(Map.Entry<TToken, TokenInformation> item: hashMap.entrySet()){
+            if (item.getValue().variableGroup == type) result++;
+        }
+        return result;
     }
 
     private static LinkedList<TToken> getTokenFlowFromString(String string){
@@ -113,21 +126,18 @@ public class PythonTokenizer {
         else if (isFunctionIOParams) newInformation.variableGroup = EVariableGroup.PROCESSING;
         else if (isAssignNow) newInformation.variableGroup = EVariableGroup.TROPHIC;
 
-        if (map.putIfAbsent(item, newInformation) != null) {
+        if (isInputParam) newInformation.wasIO = true;
+
+        if (map.putIfAbsent(item, newInformation) != null){
             TokenInformation toEdit = map.get(item);
             toEdit.count++;
-            if ((isInsideChoiceBlock || isFunctionIOParams || isAssignNow) && toEdit.variableGroup.compareTo(newInformation.variableGroup) <= 0)
+            if (isInputParam) toEdit.wasIO = true;
+            if ((isInsideChoiceBlock || isFunctionIOParams || isAssignNow) && toEdit.variableGroup.compareTo(newInformation.variableGroup) <= 0) {
                 toEdit.variableGroup = newInformation.variableGroup;
-            else if (toEdit.variableGroup.compareTo(EVariableGroup.MODIFIED)<0) toEdit.variableGroup = EVariableGroup.MODIFIED;
-        }
-        if (isFunctionIOParams)
-            if (ioChapinMetric.putIfAbsent(item, newInformation) != null) {
-            TokenInformation toEdit = ioChapinMetric.get(item);
-            toEdit.count++;
-            if ((isInsideChoiceBlock || isFunctionIOParams || isAssignNow) && toEdit.variableGroup.compareTo(newInformation.variableGroup) <= 0)
-                toEdit.variableGroup = newInformation.variableGroup;
-            else if (toEdit.variableGroup.compareTo(EVariableGroup.MODIFIED)<0) toEdit.variableGroup = EVariableGroup.MODIFIED;
-        }
+            }
+            else if (toEdit.variableGroup.compareTo(EVariableGroup.MODIFIED)<0 && !toEdit.wasIO) toEdit.variableGroup = EVariableGroup.MODIFIED;
+            if (isFunctionIOParams) ioChapinMetric.put(item, toEdit);
+        } else if (isFunctionIOParams) ioChapinMetric.put(item,newInformation);
     }
 
     private static String readCodeFromFile(String path){
@@ -328,6 +338,7 @@ record TToken(String tokenValue, TokenType tokenType){
 }
 class TokenInformation{
     public int count = 1;
+    public boolean wasIO = false;
     public EVariableGroup variableGroup = EVariableGroup.UNDEFINED;
 }
 enum EVariableGroup{UNDEFINED, TROPHIC, PROCESSING, MODIFIED, CHOICE}
