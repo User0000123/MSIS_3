@@ -1,0 +1,16 @@
+<component name="libraryTable">
+  <library name="jython2.7">
+    <CLASSES>
+      <root url="file://$USER_HOME$/Downloads/jython2.7.3" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="file://$USER_HOME$/Downloads/jython2.7.3/Doc/javadoc" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="file://$USER_HOME$/Downloads/jython2.7.3/Demo/embed" />
+      <root url="file://$USER_HOME$/Downloads/jython2.7.3/Demo/jreload/src" />
+      <root url="file://$USER_HOME$/Downloads/jython2.7.3/tests/java" />
+    </SOURCES>
+    <jarDirectory url="file://$USER_HOME$/Downloads/jython2.7.3" recursive="false" />
+  </library>
+</component>
